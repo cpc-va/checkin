@@ -183,6 +183,9 @@ function App() {
 
         people.sort((a, b) => {
           // Sort by giving unit first, then by display name
+          // Put "#" giving units at the end
+          if (a.givingUnit === "#" && b.givingUnit !== "#") return 1;
+          if (a.givingUnit !== "#" && b.givingUnit === "#") return -1;
           if (a.givingUnit !== b.givingUnit) {
             return a.givingUnit.localeCompare(b.givingUnit);
           }
@@ -205,7 +208,7 @@ function App() {
     return (
       a.display?.toLowerCase().includes(q) ||
       a.chinese?.toLowerCase().includes(q) ||
-      a.category?.toLowerCase().includes(q)
+      a.givingUnit?.toLowerCase().includes(q)
     );
   });
 
@@ -327,15 +330,19 @@ function App() {
     const person: Attendee = {
       ...(newAttendee as Attendee),
       display,
+      givingUnit: newAttendee.givingUnit || display, // Default to display name if not provided
       dateAdded: today,
     };
 
     const updated = [...attendees, person];
 
     updated.sort((a, b) => {
-      // Sort by category first, then by display name
-      if (a.category !== b.category) {
-        return a.category.localeCompare(b.category);
+      // Sort by giving unit first, then by display name
+      // Put "#" giving units at the end
+      if (a.givingUnit === "#" && b.givingUnit !== "#") return 1;
+      if (a.givingUnit !== "#" && b.givingUnit === "#") return -1;
+      if (a.givingUnit !== b.givingUnit) {
+        return a.givingUnit.localeCompare(b.givingUnit);
       }
       return a.display.localeCompare(b.display);
     });
@@ -343,7 +350,7 @@ function App() {
     setAttendees(updated);
     localStorage.setItem("attendees", JSON.stringify(updated));
     setAddOpen(false);
-    setNewAttendee({ category: "Adult" });
+    setNewAttendee({ category: "Adult", givingUnit: "" });
   }
 
   return (
