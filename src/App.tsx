@@ -45,6 +45,7 @@ type Attendee = {
   displaySequence?: number;
   notes?: string;
   dateAdded?: string;
+  dateUpdated?: string;
 };
 
 type AttendeeCSV = {
@@ -65,6 +66,7 @@ type AttendeeCSV = {
   "Display Sequence"?: string;
   Notes?: string;
   "Date Added"?: string;
+  "Date Updated"?: string;
 };
 
 function App() {
@@ -85,8 +87,14 @@ function App() {
   const [previousGivingUnit, setPreviousGivingUnit] = useState("");
   const [previousDisplaySequence, setPreviousDisplaySequence] = useState(1);
   const [isAddingFamily, setIsAddingFamily] = useState(false);
+  const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
+  const [contextMenuAnchor, setContextMenuAnchor] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [newAttendee, setNewAttendee] = useState<Partial<Attendee>>({
     category: "Adult",
@@ -132,6 +140,42 @@ function App() {
       localStorage.setItem("checkins", JSON.stringify(updated)); // persist immediately
       return updated;
     });
+  }
+
+  function handleTouchStart(attendee: Attendee, event: React.TouchEvent) {
+    const touch = event.touches[0];
+    longPressTimeoutRef.current = setTimeout(() => {
+      setContextMenuAnchor({ x: touch.clientX, y: touch.clientY });
+      setEditingAttendee(attendee);
+    }, 500); // 500ms for long press
+  }
+
+  function handleTouchEnd() {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  }
+
+  function handleTouchMove() {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  }
+
+  function handleContextMenuEdit() {
+    if (editingAttendee) {
+      setNewAttendee({ ...editingAttendee });
+      setAddOpen(true);
+      setContextMenuAnchor(null);
+      // Don't clear editingAttendee here - it needs to stay set for the dialog
+    }
+  }
+
+  function handleContextMenuClose() {
+    setContextMenuAnchor(null);
+    setEditingAttendee(null);
   }
 
   function resetCheckins() {
@@ -193,6 +237,7 @@ function App() {
             : undefined,
           notes: row["Notes"],
           dateAdded: row["Date Added"],
+          dateUpdated: row["Date Updated"],
         }));
 
         people.sort((a, b) => {
@@ -302,6 +347,7 @@ function App() {
       "Display Sequence",
       "Notes",
       "Date Added",
+      "Date Updated",
     ];
 
     const quote = (value: any) => {
@@ -328,6 +374,7 @@ function App() {
         a.displaySequence,
         a.notes,
         a.dateAdded,
+        a.dateUpdated,
       ]
         .map(quote)
         .join(","),
@@ -349,6 +396,58 @@ function App() {
       (newAttendee.en ? ` (${newAttendee.en})` : "");
 
     const today = new Date().toISOString().split("T")[0];
+
+    if (editingAttendee) {
+      // Editing existing attendee
+      const today = new Date().toISOString().split("T")[0];
+      const updatedAttendees = attendees.map((attendee) =>
+        attendee.display === editingAttendee.display
+          ? {
+              ...(newAttendee as Attendee),
+              display,
+              givingUnit: attendee.givingUnit, // Keep original givingUnit
+              displaySequence: newAttendee.displaySequence || 1,
+              dateAdded: attendee.dateAdded, // Keep original date
+              dateUpdated: today, // Set update date
+            }
+          : attendee,
+      );
+
+      updatedAttendees.sort((a, b) => {
+        // Sort by giving unit first, then by display sequence, then by display name
+        // Put "#" giving units at the end
+        if (a.givingUnit === "#" && b.givingUnit !== "#") return 1;
+        if (a.givingUnit !== "#" && b.givingUnit === "#") return -1;
+        if (a.givingUnit !== b.givingUnit) {
+          return a.givingUnit.localeCompare(b.givingUnit);
+        }
+        // Within the same giving unit, sort by display sequence (blank/undefined last)
+        const aSeq = a.displaySequence ?? 999999;
+        const bSeq = b.displaySequence ?? 999999;
+        if (aSeq !== bSeq) {
+          return aSeq - bSeq;
+        }
+        return a.display.localeCompare(b.display);
+      });
+
+      setAttendees(updatedAttendees);
+      localStorage.setItem("attendees", JSON.stringify(updatedAttendees));
+
+      // Update previous values for potential family member addition
+      setPreviousGivingUnit(editingAttendee.givingUnit); // Use original givingUnit
+      setPreviousDisplaySequence(newAttendee.displaySequence || 1);
+      setPreviousLastName(newAttendee.ln);
+      setPreviousStreet(newAttendee.street || "");
+      setPreviousCity(newAttendee.city || "");
+      setPreviousState(newAttendee.state || "");
+      setPreviousZip(newAttendee.zip || "");
+
+      // Close dialog and show family member prompt (same as adding new attendee)
+      setAddOpen(false);
+      setEditingAttendee(null);
+      setShowFamilyPrompt(true);
+      return;
+    }
 
     // Determine giving unit: use previous for family members, display for new attendees
     const givingUnit = isAddingFamily ? previousGivingUnit : display;
@@ -538,6 +637,19 @@ function App() {
           </MenuItem>
         </Menu>
 
+        <Menu
+          open={Boolean(contextMenuAnchor)}
+          onClose={handleContextMenuClose}
+          anchorReference="anchorPosition"
+          anchorPosition={
+            contextMenuAnchor
+              ? { top: contextMenuAnchor.y, left: contextMenuAnchor.x }
+              : undefined
+          }
+        >
+          <MenuItem onClick={handleContextMenuEdit}>Edit Attendee</MenuItem>
+        </Menu>
+
         <Stack spacing={2}>
           <input ref={fileInputRef} hidden type="file" onChange={loadCSV} />
 
@@ -611,6 +723,9 @@ function App() {
             <Box
               key={`${a.ln}-${a.fn}-${index}`}
               onClick={() => toggle(a.display)}
+              onTouchStart={(e) => handleTouchStart(a, e)}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchMove}
               sx={{
                 display: "flex",
                 alignItems: "center",
@@ -643,7 +758,9 @@ function App() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Add Attendee</DialogTitle>
+        <DialogTitle>
+          {editingAttendee ? "Edit Attendee" : "Add Attendee"}
+        </DialogTitle>
 
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -810,9 +927,17 @@ function App() {
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={() => setAddOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setAddOpen(false);
+              setEditingAttendee(null);
+              setNewAttendee({ category: "Adult", displaySequence: 1 });
+            }}
+          >
+            Cancel
+          </Button>
           <Button variant="contained" onClick={handleAddAttendee}>
-            Add Attendee
+            {editingAttendee ? "Update Attendee" : "Add Attendee"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -844,8 +969,9 @@ function App() {
           <Typography>The CPC check-in app allows volunteers to:</Typography>
 
           <ul>
-            <li>Import existing attendees</li>
+            <li>Import and update existing attendees</li>
             <li>Add new attendees to the list</li>
+            <li>Add family members</li>
             <li>Search attendees quickly</li>
             <li>Check people in</li>
             <li>Export attendance records</li>
@@ -859,7 +985,7 @@ function App() {
               color: "text.secondary",
             }}
           >
-            Version 0.1.0 (updated 2026-03-14)
+            Version 1.0.0 (updated 2026-03-14)
             <br />
             Developed by Wah for CPC
           </Typography>
