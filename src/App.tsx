@@ -41,6 +41,7 @@ type Attendee = {
   zip?: string;
   category: string;
   language?: string;
+  givingUnit: string;
   notes?: string;
   dateAdded?: string;
 };
@@ -59,6 +60,7 @@ type AttendeeCSV = {
   ZIP?: string;
   Category: string;
   "Primary Language"?: string;
+  "Giving Unit"?: string;
   Notes?: string;
   "Date Added"?: string;
 };
@@ -74,7 +76,6 @@ function App() {
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
-  const firstMatchRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newAttendee, setNewAttendee] = useState<Partial<Attendee>>({
@@ -91,15 +92,6 @@ function App() {
       setChecked(JSON.parse(saved));
     }
   }, []);
-
-  useEffect(() => {
-    if (firstMatchRef.current) {
-      firstMatchRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }
-  }, [search]);
 
   useEffect(() => {
     const savedAttendees = localStorage.getItem("attendees");
@@ -184,11 +176,18 @@ function App() {
           zip: row["ZIP"],
           category: row["Category"],
           language: row["Primary Language"],
+          givingUnit: row["Giving Unit"] ?? row["Display Name"],
           notes: row["Notes"],
           dateAdded: row["Date Added"],
         }));
 
-        people.sort((a, b) => a.display.localeCompare(b.display));
+        people.sort((a, b) => {
+          // Sort by giving unit first, then by display name
+          if (a.givingUnit !== b.givingUnit) {
+            return a.givingUnit.localeCompare(b.givingUnit);
+          }
+          return a.display.localeCompare(b.display);
+        });
 
         setAttendees(people);
         localStorage.setItem("attendees", JSON.stringify(people));
@@ -205,7 +204,8 @@ function App() {
     const q = search.toLowerCase();
     return (
       a.display?.toLowerCase().includes(q) ||
-      a.chinese?.toLowerCase().includes(q)
+      a.chinese?.toLowerCase().includes(q) ||
+      a.category?.toLowerCase().includes(q)
     );
   });
 
@@ -244,18 +244,15 @@ function App() {
   function exportCheckins() {
     const today = new Date().toISOString().split("T")[0];
 
+    const checkinDate = window.prompt("Confirm check-in date:", today);
+    const filename = `checkins-${checkinDate}.csv`;
+
     const rows = Object.keys(checked)
       .filter((k) => checked[k])
-      .map((name) => `${today},"${name}"`);
-
+      .map((name) => `${checkinDate},"${name}"`);
     const csv = "Date,Display Name\n" + rows.join("\n");
 
-    const defaultFilename = `checkins-${today}.csv`;
-    const filename = window.prompt("Enter filename:", defaultFilename);
-
-    if (filename) {
-      downloadFile(csv, filename);
-    }
+    downloadFile(csv, filename);
   }
 
   function exportAttendees() {
@@ -302,6 +299,7 @@ function App() {
         a.zip,
         a.category,
         a.language,
+        a.givingUnit,
         a.notes,
         a.dateAdded,
       ]
@@ -334,7 +332,13 @@ function App() {
 
     const updated = [...attendees, person];
 
-    updated.sort((a, b) => a.display.localeCompare(b.display));
+    updated.sort((a, b) => {
+      // Sort by category first, then by display name
+      if (a.category !== b.category) {
+        return a.category.localeCompare(b.category);
+      }
+      return a.display.localeCompare(b.display);
+    });
 
     setAttendees(updated);
     localStorage.setItem("attendees", JSON.stringify(updated));
@@ -491,7 +495,6 @@ function App() {
           return (
             <Box
               key={`${a.ln}-${a.fn}-${index}`}
-              ref={index === 0 ? firstMatchRef : null}
               onClick={() => toggle(a.display)}
               sx={{
                 display: "flex",
@@ -698,6 +701,12 @@ function App() {
             <li>Check people in</li>
             <li>Export attendance records</li>
           </ul>
+
+          <Typography>
+            Version 0.1 (updated 2026-03-14)
+            <br />
+            Developed by Wah for CPC
+          </Typography>
         </DialogContent>
 
         <DialogActions>
