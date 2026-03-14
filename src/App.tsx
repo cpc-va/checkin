@@ -42,6 +42,7 @@ type Attendee = {
   category: string;
   language?: string;
   givingUnit: string;
+  displaySequence?: number;
   notes?: string;
   dateAdded?: string;
 };
@@ -61,6 +62,7 @@ type AttendeeCSV = {
   Category: string;
   "Primary Language"?: string;
   "Giving Unit"?: string;
+  "Display Sequence"?: string;
   Notes?: string;
   "Date Added"?: string;
 };
@@ -177,17 +179,26 @@ function App() {
           category: row["Category"],
           language: row["Primary Language"],
           givingUnit: row["Giving Unit"] ?? row["Display Name"],
+          displaySequence: row["Display Sequence"]
+            ? parseInt(row["Display Sequence"], 10)
+            : undefined,
           notes: row["Notes"],
           dateAdded: row["Date Added"],
         }));
 
         people.sort((a, b) => {
-          // Sort by giving unit first, then by display name
+          // Sort by giving unit first, then by display sequence, then by display name
           // Put "#" giving units at the end
           if (a.givingUnit === "#" && b.givingUnit !== "#") return 1;
           if (a.givingUnit !== "#" && b.givingUnit === "#") return -1;
           if (a.givingUnit !== b.givingUnit) {
             return a.givingUnit.localeCompare(b.givingUnit);
+          }
+          // Within the same giving unit, sort by display sequence (blank/undefined last)
+          const aSeq = a.displaySequence ?? 999999;
+          const bSeq = b.displaySequence ?? 999999;
+          if (aSeq !== bSeq) {
+            return aSeq - bSeq;
           }
           return a.display.localeCompare(b.display);
         });
@@ -278,6 +289,8 @@ function App() {
       "ZIP",
       "Category",
       "Primary Language",
+      "Giving Unit",
+      "Display Sequence",
       "Notes",
       "Date Added",
     ];
@@ -303,6 +316,7 @@ function App() {
         a.category,
         a.language,
         a.givingUnit,
+        a.displaySequence,
         a.notes,
         a.dateAdded,
       ]
@@ -337,12 +351,18 @@ function App() {
     const updated = [...attendees, person];
 
     updated.sort((a, b) => {
-      // Sort by giving unit first, then by display name
+      // Sort by giving unit first, then by display sequence, then by display name
       // Put "#" giving units at the end
       if (a.givingUnit === "#" && b.givingUnit !== "#") return 1;
       if (a.givingUnit !== "#" && b.givingUnit === "#") return -1;
       if (a.givingUnit !== b.givingUnit) {
         return a.givingUnit.localeCompare(b.givingUnit);
+      }
+      // Within the same giving unit, sort by display sequence (blank/undefined last)
+      const aSeq = a.displaySequence ?? 999999;
+      const bSeq = b.displaySequence ?? 999999;
+      if (aSeq !== bSeq) {
+        return aSeq - bSeq;
       }
       return a.display.localeCompare(b.display);
     });
@@ -499,6 +519,10 @@ function App() {
           const label = a.chinese ? `${a.display} [${a.chinese}]` : a.display;
           const isChecked = checked[a.display] || false;
 
+          // Check if this is the first attendee or if giving unit changed from previous
+          const isFirstInGroup =
+            index === 0 || filtered[index - 1].givingUnit !== a.givingUnit;
+
           return (
             <Box
               key={`${a.ln}-${a.fn}-${index}`}
@@ -508,6 +532,9 @@ function App() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 borderBottom: "1px solid #eee",
+                borderTop: isFirstInGroup
+                  ? "3px solid #1976d2"
+                  : "1px solid #eee",
                 padding: "10px 0",
                 cursor: "pointer",
                 color: "black",
@@ -709,7 +736,14 @@ function App() {
             <li>Export attendance records</li>
           </ul>
 
-          <Typography>
+          <Typography
+            sx={{
+              textAlign: "center",
+              fontSize: "0.875rem",
+              fontStyle: "italic",
+              color: "text.secondary",
+            }}
+          >
             Version 0.1 (updated 2026-03-14)
             <br />
             Developed by Wah for CPC
