@@ -402,6 +402,9 @@ function App() {
     setAttendees(updated);
     localStorage.setItem("attendees", JSON.stringify(updated));
 
+    // Auto-check the newly added attendee
+    setChecked((prev) => ({ ...prev, [display]: true }));
+
     // Close the add dialog and show family member prompt
     setAddOpen(false);
     setShowFamilyPrompt(true);
@@ -457,14 +460,23 @@ function App() {
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent: "center",
             alignItems: "center",
+            position: "relative",
           }}
         >
-          <Typography variant="h4" gutterBottom color="black">
+          <Typography
+            variant="h4"
+            gutterBottom
+            color="black"
+            sx={{ textAlign: "center" }}
+          >
             CPC Check-in
           </Typography>
-          <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <IconButton
+            onClick={(e) => setMenuAnchor(e.currentTarget)}
+            sx={{ position: "absolute", right: 0 }}
+          >
             <MenuIcon />
           </IconButton>
         </Box>
@@ -472,12 +484,18 @@ function App() {
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent: "center",
             alignItems: "center",
           }}
         >
-          <Typography variant="h6" color="black" sx={{ mt: 1 }}>
-            Today's Date: <b>{getTodaysDate()}</b>
+          <Typography
+            variant="h6"
+            color="black"
+            sx={{ mt: 1, textAlign: "center" }}
+          >
+            Today's Date:
+            <br />
+            <b>{getTodaysDate()}</b>
           </Typography>
         </Box>
 
@@ -538,7 +556,7 @@ function App() {
             }}
           />
 
-          <Stack direction="row" spacing={3}>
+          <Stack direction="row" spacing={3} justifyContent="center">
             <Typography color="black">Pre-K: {counts["Pre-K"]}</Typography>
             <Typography color="black">K-8: {counts["K-8"]}</Typography>
             <Typography color="black">HS: {counts["HS"]}</Typography>
@@ -548,7 +566,7 @@ function App() {
             </Typography>
           </Stack>
 
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={2} justifyContent="center">
             <Button
               variant="contained"
               sx={{ backgroundColor: "green", color: "white" }}
@@ -841,7 +859,7 @@ function App() {
               color: "text.secondary",
             }}
           >
-            Version 0.0.1 (updated 2026-03-14)
+            Version 0.1.0 (updated 2026-03-14)
             <br />
             Developed by Wah for CPC
           </Typography>
@@ -856,11 +874,17 @@ function App() {
         open={confirmClearOpen}
         onClose={() => setConfirmClearOpen(false)}
       >
-        <DialogTitle>Confirm Clear Check-ins</DialogTitle>
+        <DialogTitle>Start New Check-in</DialogTitle>
 
         <DialogContent>
           <Typography>
-            This will clear all your checked attendees. Are you sure?
+            <b>This will clear all your existing checked attendees.</b>
+            <br />
+            Please make sure you've already exported the previous check-in data
+            via <b>FINISH & EXPORT</b>.
+            <br />
+            <br />
+            Are you sure you want to start over?
           </Typography>
         </DialogContent>
 
@@ -871,7 +895,7 @@ function App() {
             color="error"
             onClick={confirmClearCheckins}
           >
-            Clear All
+            Clear All & Start New Check-in
           </Button>
         </DialogActions>
       </Dialog>
