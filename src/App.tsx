@@ -841,7 +841,7 @@ function App() {
               color: "text.secondary",
             }}
           >
-            Version 0.1 (updated 2026-03-14)
+            Version 0.0.1 (updated 2026-03-14)
             <br />
             Developed by Wah for CPC
           </Typography>
