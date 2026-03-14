@@ -74,14 +74,23 @@ function App() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [showFamilyPrompt, setShowFamilyPrompt] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
-
-  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [previousLastName, setPreviousLastName] = useState("");
+  const [previousStreet, setPreviousStreet] = useState("");
+  const [previousCity, setPreviousCity] = useState("");
+  const [previousState, setPreviousState] = useState("");
+  const [previousZip, setPreviousZip] = useState("");
+  const [previousGivingUnit, setPreviousGivingUnit] = useState("");
+  const [previousDisplaySequence, setPreviousDisplaySequence] = useState(1);
+  const [isAddingFamily, setIsAddingFamily] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newAttendee, setNewAttendee] = useState<Partial<Attendee>>({
     category: "Adult",
+    displaySequence: 1,
   });
 
   useEffect(() => {
@@ -341,10 +350,33 @@ function App() {
 
     const today = new Date().toISOString().split("T")[0];
 
+    // Determine giving unit: use previous for family members, display for new attendees
+    const givingUnit = isAddingFamily ? previousGivingUnit : display;
+
+    if (!isAddingFamily) {
+      // Only update previous values for new attendees, not family members
+      setPreviousGivingUnit(display);
+      setPreviousDisplaySequence(newAttendee.displaySequence || 1);
+      setPreviousLastName(newAttendee.ln);
+      setPreviousStreet(newAttendee.street || "");
+      setPreviousCity(newAttendee.city || "");
+      setPreviousState(newAttendee.state || "");
+      setPreviousZip(newAttendee.zip || "");
+    } else {
+      // For family members, update the last name in case it was changed
+      setPreviousLastName(newAttendee.ln);
+      setPreviousStreet(newAttendee.street || "");
+      setPreviousCity(newAttendee.city || "");
+      setPreviousState(newAttendee.state || "");
+      setPreviousZip(newAttendee.zip || "");
+      setPreviousDisplaySequence(previousDisplaySequence + 1);
+    }
+
     const person: Attendee = {
       ...(newAttendee as Attendee),
       display,
-      givingUnit: newAttendee.givingUnit || display, // Default to display name if not provided
+      givingUnit: givingUnit,
+      displaySequence: newAttendee.displaySequence || 1,
       dateAdded: today,
     };
 
@@ -369,8 +401,42 @@ function App() {
 
     setAttendees(updated);
     localStorage.setItem("attendees", JSON.stringify(updated));
+
+    // Close the add dialog and show family member prompt
     setAddOpen(false);
-    setNewAttendee({ category: "Adult", givingUnit: "" });
+    setShowFamilyPrompt(true);
+  }
+
+  function handleFamilyPromptResponse(addFamily: boolean) {
+    setShowFamilyPrompt(false);
+
+    if (addFamily) {
+      // Reset form with last name pre-populated and incremented sequence
+      setNewAttendee({
+        category: "Adult",
+        displaySequence: previousDisplaySequence + 1,
+        ln: previousLastName,
+        street: previousStreet,
+        city: previousCity,
+        state: previousState,
+        zip: previousZip,
+      });
+      setIsAddingFamily(true);
+      // Reopen the add dialog for the next family member
+      setAddOpen(true);
+    } else {
+      // Close the modal
+      setAddOpen(false);
+      setNewAttendee({ category: "Adult", displaySequence: 1 });
+      setPreviousLastName("");
+      setPreviousStreet("");
+      setPreviousCity("");
+      setPreviousState("");
+      setPreviousZip("");
+      setPreviousGivingUnit("");
+      setPreviousDisplaySequence(1);
+      setIsAddingFamily(false);
+    }
   }
 
   return (
@@ -567,6 +633,7 @@ function App() {
               <TextField
                 fullWidth
                 label="Last Name"
+                value={newAttendee.ln || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, ln: e.target.value })
                 }
@@ -577,6 +644,7 @@ function App() {
               <TextField
                 fullWidth
                 label="First Name"
+                value={newAttendee.fn || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, fn: e.target.value })
                 }
@@ -587,6 +655,7 @@ function App() {
               <TextField
                 fullWidth
                 label="English Name"
+                value={newAttendee.en || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, en: e.target.value })
                 }
@@ -597,6 +666,7 @@ function App() {
               <TextField
                 fullWidth
                 label="Chinese Name"
+                value={newAttendee.chinese || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, chinese: e.target.value })
                 }
@@ -607,6 +677,7 @@ function App() {
               <TextField
                 fullWidth
                 label="Email"
+                value={newAttendee.email || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, email: e.target.value })
                 }
@@ -617,6 +688,7 @@ function App() {
               <TextField
                 fullWidth
                 label="Phone"
+                value={newAttendee.phone || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, phone: e.target.value })
                 }
@@ -627,6 +699,7 @@ function App() {
               <TextField
                 fullWidth
                 label="Street Address"
+                value={newAttendee.street || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, street: e.target.value })
                 }
@@ -637,6 +710,7 @@ function App() {
               <TextField
                 fullWidth
                 label="City"
+                value={newAttendee.city || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, city: e.target.value })
                 }
@@ -647,6 +721,7 @@ function App() {
               <TextField
                 fullWidth
                 label="State"
+                value={newAttendee.state || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, state: e.target.value })
                 }
@@ -657,6 +732,7 @@ function App() {
               <TextField
                 fullWidth
                 label="ZIP"
+                value={newAttendee.zip || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, zip: e.target.value })
                 }
@@ -706,6 +782,7 @@ function App() {
                 multiline
                 rows={3}
                 label="Notes"
+                value={newAttendee.notes || ""}
                 onChange={(e) =>
                   setNewAttendee({ ...newAttendee, notes: e.target.value })
                 }
@@ -718,6 +795,26 @@ function App() {
           <Button onClick={() => setAddOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleAddAttendee}>
             Add Attendee
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={showFamilyPrompt}
+        onClose={() => handleFamilyPromptResponse(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Add a Family Member?</DialogTitle>
+        <DialogActions>
+          <Button onClick={() => handleFamilyPromptResponse(false)}>
+            No, I'm done
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => handleFamilyPromptResponse(true)}
+          >
+            Yes, add family member
           </Button>
         </DialogActions>
       </Dialog>
