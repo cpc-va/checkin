@@ -21,6 +21,8 @@ import {
   InputAdornment,
   IconButton,
   Menu,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -41,8 +43,13 @@ type Attendee = {
   zip?: string;
   category: string;
   language?: string;
+  congregation?: string;
+  active?: string;
+  member?: string;
+  memberSince?: string;
   givingUnit: string;
   displaySequence?: number;
+  group?: string;
   notes?: string;
   dateAdded?: string;
   dateUpdated?: string;
@@ -62,8 +69,13 @@ type AttendeeCSV = {
   ZIP?: string;
   Category: string;
   "Primary Language"?: string;
+  Congregation?: string;
+  "Active?"?: string;
+  "Member?"?: string;
+  "Member Since"?: string;
   "Giving Unit"?: string;
   "Display Sequence"?: string;
+  Group?: string;
   Notes?: string;
   "Date Added"?: string;
   "Date Updated"?: string;
@@ -73,6 +85,21 @@ function App() {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState("");
+  const [congregationFilter, setCongregationFilter] = useState<string>(() => {
+    return localStorage.getItem("congregationFilter") || "Any";
+  });
+  const [showRegularsOnly, setShowRegularsOnly] = useState<boolean>(() => {
+    const saved = localStorage.getItem("showRegularsOnly");
+    return saved !== null ? saved === "true" : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("congregationFilter", congregationFilter);
+  }, [congregationFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("showRegularsOnly", String(showRegularsOnly));
+  }, [showRegularsOnly]);
 
   const [addOpen, setAddOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -199,6 +226,8 @@ function App() {
         // No checked attendees, just clear
         setChecked({});
         localStorage.setItem("checkins", JSON.stringify({}));
+        setCongregationFilter("Any");
+        setShowRegularsOnly(true);
       }
     }
   }
@@ -206,6 +235,8 @@ function App() {
   function confirmClearCheckins() {
     setChecked({});
     localStorage.setItem("checkins", JSON.stringify({}));
+    setCongregationFilter("Any");
+    setShowRegularsOnly(true);
     setConfirmClearOpen(false);
   }
 
@@ -231,10 +262,15 @@ function App() {
           zip: row["ZIP"],
           category: row["Category"],
           language: row["Primary Language"],
+          congregation: row["Congregation"],
+          active: row["Active?"],
+          member: row["Member?"],
+          memberSince: row["Member Since"],
           givingUnit: row["Giving Unit"] ?? row["Display Name"],
           displaySequence: row["Display Sequence"]
             ? parseInt(row["Display Sequence"], 10)
             : undefined,
+          group: row["Group"],
           notes: row["Notes"],
           dateAdded: row["Date Added"],
           dateUpdated: row["Date Updated"],
@@ -268,7 +304,28 @@ function App() {
     });
   }
 
-  const filtered = attendees.filter((a) => {
+  const baseFiltered = attendees.filter((a) => {
+    // Always filter out Active? = "D"
+    const act = (a.active || "").trim().toUpperCase();
+    if (act === "D") return false;
+
+    // Congregation filter
+    const cong = (a.congregation || "").trim().toLowerCase();
+    if (congregationFilter === "Chinese") {
+      if (cong !== "chinese" && cong !== "") return false;
+    } else if (congregationFilter === "English") {
+      if (cong !== "english" && cong !== "") return false;
+    }
+
+    // Show Regulars only filter (Active? is 'Y' or 'S')
+    if (showRegularsOnly) {
+      if (act !== "Y" && act !== "S") return false;
+    }
+
+    return true;
+  });
+
+  const filtered = baseFiltered.filter((a) => {
     const q = search.toLowerCase();
     return (
       a.display?.toLowerCase().includes(q) ||
@@ -313,12 +370,19 @@ function App() {
     const today = new Date().toISOString().split("T")[0];
 
     const checkinDate = window.prompt("Confirm check-in date:", today);
+    if (checkinDate === null) return;
     const filename = `checkins-${checkinDate}.csv`;
 
     const rows = Object.keys(checked)
       .filter((k) => checked[k])
-      .map((name) => `${checkinDate},"${name}"`);
-    const csv = "Date,Display Name\n" + rows.join("\n");
+      .map((name) => {
+        const attendee = attendees.find((a) => a.display === name);
+        const congregation = attendee?.congregation || "";
+        const nameEscaped = name.replace(/"/g, '""');
+        const congregationEscaped = congregation.replace(/"/g, '""');
+        return `${checkinDate},"${nameEscaped}","${congregationEscaped}"`;
+      });
+    const csv = "Date,Display Name,Congregation\n" + rows.join("\n");
 
     downloadFile(csv, filename);
   }
@@ -343,8 +407,13 @@ function App() {
       "ZIP",
       "Category",
       "Primary Language",
+      "Congregation",
+      "Active?",
+      "Member?",
+      "Member Since",
       "Giving Unit",
       "Display Sequence",
+      "Group",
       "Notes",
       "Date Added",
       "Date Updated",
@@ -370,8 +439,13 @@ function App() {
         a.zip,
         a.category,
         a.language,
+        a.congregation,
+        a.active,
+        a.member,
+        a.memberSince,
         a.givingUnit,
         a.displaySequence,
+        a.group,
         a.notes,
         a.dateAdded,
         a.dateUpdated,
@@ -580,23 +654,64 @@ function App() {
           </IconButton>
         </Box>
 
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Typography
-            variant="h6"
-            color="black"
-            sx={{ mt: 1, textAlign: "center" }}
+        <Grid container spacing={2} alignItems="center" sx={{ mt: 1, px: 1 }}>
+          <Grid
+            item
+            xs={12}
+            sm={4}
+            sx={{ display: "flex", justifyContent: "flex-start" }}
           >
-            Today's Date:
-            <br />
-            <b>{getTodaysDate()}</b>
-          </Typography>
-        </Box>
+            <Typography variant="h6" color="black" sx={{ textAlign: "left" }}>
+              Today's Date:
+              <br />
+              <b>{getTodaysDate()}</b>
+            </Typography>
+          </Grid>
+          <Grid
+            item
+            xs={12}
+            sm={4}
+            sx={{ display: "flex", justifyContent: "center" }}
+          >
+            <FormControl sx={{ minWidth: 160 }} size="small">
+              <InputLabel id="congregation-filter-label">
+                Congregation
+              </InputLabel>
+              <Select
+                labelId="congregation-filter-label"
+                value={congregationFilter}
+                label="Congregation"
+                onChange={(e) => setCongregationFilter(e.target.value)}
+              >
+                <MenuItem value="Any">Any</MenuItem>
+                <MenuItem value="Chinese">Chinese</MenuItem>
+                <MenuItem value="English">English</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid
+            item
+            xs={12}
+            sm={4}
+            sx={{
+              display: "flex",
+              justifyContent: { xs: "flex-start", sm: "flex-end" },
+              alignItems: "center",
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showRegularsOnly}
+                  onChange={(e) => setShowRegularsOnly(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Show Regulars only"
+              sx={{ color: "black", whiteSpace: "nowrap" }}
+            />
+          </Grid>
+        </Grid>
 
         <Menu
           anchorEl={menuAnchor}
@@ -985,7 +1100,7 @@ function App() {
               color: "text.secondary",
             }}
           >
-            Version 1.0.0 (updated 2026-03-14)
+            Version 1.1.0 (updated 2026-05-30)
             <br />
             Developed by Wah for CPC
           </Typography>
