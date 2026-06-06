@@ -474,6 +474,12 @@ function App() {
     if (editingAttendee) {
       // Editing existing attendee
       const today = new Date().toISOString().split("T")[0];
+
+      // Compute updated active value: update to "S" if not set or if it's "N". Leave "Y" (or other values) alone.
+      const currentActive = (editingAttendee.active || "").trim().toUpperCase();
+      const updatedActive =
+        !currentActive || currentActive === "N" ? "S" : editingAttendee.active;
+
       const updatedAttendees = attendees.map((attendee) =>
         attendee.display === editingAttendee.display
           ? {
@@ -481,6 +487,7 @@ function App() {
               display,
               givingUnit: attendee.givingUnit, // Keep original givingUnit
               displaySequence: newAttendee.displaySequence || 1,
+              active: updatedActive,
               dateAdded: attendee.dateAdded, // Keep original date
               dateUpdated: today, // Set update date
             }
@@ -526,10 +533,26 @@ function App() {
     // Determine giving unit: use previous for family members, display for new attendees
     const givingUnit = isAddingFamily ? previousGivingUnit : display;
 
+    let finalDisplaySequence = newAttendee.displaySequence || 1;
+    if (isAddingFamily) {
+      // Find maximum display sequence for members with the same giving unit
+      const sameGivingUnitMembers = attendees.filter(
+        (a) => a.givingUnit === givingUnit,
+      );
+      const maxSeq = sameGivingUnitMembers.reduce(
+        (max, a) =>
+          a.displaySequence && a.displaySequence > max
+            ? a.displaySequence
+            : max,
+        0,
+      );
+      finalDisplaySequence = maxSeq + 1;
+    }
+
     if (!isAddingFamily) {
       // Only update previous values for new attendees, not family members
       setPreviousGivingUnit(display);
-      setPreviousDisplaySequence(newAttendee.displaySequence || 1);
+      setPreviousDisplaySequence(finalDisplaySequence);
       setPreviousLastName(newAttendee.ln);
       setPreviousStreet(newAttendee.street || "");
       setPreviousCity(newAttendee.city || "");
@@ -542,14 +565,15 @@ function App() {
       setPreviousCity(newAttendee.city || "");
       setPreviousState(newAttendee.state || "");
       setPreviousZip(newAttendee.zip || "");
-      setPreviousDisplaySequence(previousDisplaySequence + 1);
+      setPreviousDisplaySequence(finalDisplaySequence);
     }
 
     const person: Attendee = {
       ...(newAttendee as Attendee),
       display,
       givingUnit: givingUnit,
-      displaySequence: newAttendee.displaySequence || 1,
+      displaySequence: finalDisplaySequence,
+      active: newAttendee.active || "S",
       dateAdded: today,
     };
 
@@ -1100,7 +1124,7 @@ function App() {
               color: "text.secondary",
             }}
           >
-            Version 1.1.0 (updated 2026-05-30)
+            Version 1.1.1 (updated 2026-06-06)
             <br />
             Developed by Wah for CPC
           </Typography>
